@@ -24,20 +24,41 @@ class inputtext(BaseModel):
     sentence : str
         
 @app.post("/MachineLearningModel/")
-def model(input : inputtext):
+def MLmodel(input : inputtext):
     x = input.sentence
     return {"output" : loaded_model.predict(TFIDF.transform([x]))[0]}
 
 ## -------------------------------------------------DEEP LEARNING MODEL--------------------------------
+
+from transformers import BertModel
+class BERTClass(torch.nn.Module):
+    def __init__(self):
+        super(BERTClass, self).__init__()
+        self.l1 = BertModel.from_pretrained("aubmindlab/bert-base-arabertv02-twitter")
+        self.classifier = torch.nn.Linear(768, 18)
+
+    def forward(self, input_ids, attention_mask):
+        output_1 = self.l1(input_ids=input_ids, attention_mask=attention_mask)
+        hidden_state = output_1[0]
+        pooler = hidden_state[:, 0]
+        output = self.classifier(pooler)
+        return output
+
+
+
+
 from transformers import AutoTokenizer, AutoModelForMaskedLM , BertForSequenceClassification 
 tokenizer = AutoTokenizer.from_pretrained("aubmindlab/bert-base-arabertv02-twitter")
-model = BertForSequenceClassification.from_pretrained("aubmindlab/bert-base-arabertv02-twitter", num_labels = 18)
-model.train()
-from transformers import TextClassificationPipeline
-pipe = TextClassificationPipeline(model=model, tokenizer=tokenizer)
+model = BERTClass()
 
-label_dict = {'LABEL_0' : 'AE', 'LABEL_1' : 'BH', 'LABEL_2' : 'DZ', 'LABEL_3' :'EG', 'LABEL_4' : 'IQ', 'LABEL_5' : 'JO', 'LABEL_6' :'KW', 'LABEL_7' :'LB', 'LABEL_8' : 'LY',
-              'LABEL_9': 'MA', 'LABEL_10' : 'OM', 'LABEL_11' : 'PL', 'LABEL_12' :'QA', 'LABEL_13' :'SA', 'LABEL_14' :'SD', 'LABEL_15' :'SY', 'LABEL_16' : 'TN', 'LABEL_17' : 'YE'}
+# Load
+# Specify a path
+PATH = "state_dict_model.pt"
+model.load_state_dict(torch.load(PATH))
+model.eval()
+
+label_dict = {0 : 'AE', 1 : 'BH', 2 : 'DZ', 3 : 'EG', 4 : 'IQ', 5 : 'JO', 6 : 'KW', 7 : 'LB', 8 : 'LY',
+              9 : 'MA', 10 : 'OM', 11 : 'PL', 12 : 'QA', 13 : 'SA', 14 : 'SD', 15 : 'SY', 16 : 'TN', 17 : 'YE'}
 
     
 class inputtext2(BaseModel):
@@ -46,6 +67,9 @@ class inputtext2(BaseModel):
 @app.post("/DeepLearningModel/")
 def deeplearning(input : inputtext2):
     y = input.sentence2
-    for pred in pipe(y):
-        return {"output": label_dict[pred["label"]]}
+    inputs = tokenizer([y])
+    input_ids = torch.tensor(inputs['input_ids'], dtype=torch.long)
+    attention_mask = torch.tensor(inputs['attention_mask'], dtype=torch.long)
+    model(input_ids,attention_mask)
+    return {"output": label_dict[np.argmax(model(input_ids,attention_mask).detach().numpy())][0]}
     #return {"output":[ label_dict[pred["label"]] for pred in pipe(y)] [0]}
